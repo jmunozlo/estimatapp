@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#667eea">
+    <title>EstimatApp - Scrum Poker</title>
+    <link rel="stylesheet" href="/static/styles.css?v=10.0">
+</head>
+<body>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">
+        <span id="themeIcon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header>
+            <h1 class="logo">EstimatApp</h1>
+            <p class="subtitle">Planning Poker para equipos ágiles 🚀</p>
+        </header>
+
+        <main>
+            <section class="welcome-section">
+                <h2>Bienvenido</h2>
+                <p>Crea una nueva sala o únete a una existente para comenzar a estimar con tu equipo.</p>
+            </section>
+
+            <section class="actions">
+                <div class="card">
+                    <h3>Crear Nueva Sala</h3>
+                    <form id="createRoomForm">
+                        <input 
+                            type="text" 
+                            id="roomName" 
+                            placeholder="Nombre de la sala" 
+                            required
+                            maxlength="50"
+                        >
+                        <button type="submit" class="btn btn-primary">Crear Sala</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>Unirse a una Sala</h3>
+                    <form id="joinRoomForm">
+                        <input 
+                            type="text" 
+                            id="roomId" 
+                            placeholder="ID de la sala" 
+                            required
+                            maxlength="8"
+                        >
+                        <input 
+                            type="text" 
+                            id="playerName" 
+                            placeholder="Tu nombre" 
+                            required
+                            maxlength="30"
+                        >
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="isObserver">
+                            <span>Unirse como observador</span>
+                        </label>
+                        <button type="submit" class="btn btn-primary">Unirse</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="activeRooms" class="active-rooms" style="display: none;">
+                <h3>Salas Activas</h3>
+                <div id="roomsList" class="rooms-list"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>EstimatApp - Hecho con ❤️ para equipos ágiles</p>
+        </footer>
+    </div>
+
+    <script src="/static/home.js"></script>
+    
+    <!-- Modal de Notificación -->
+    <div id="notificationModal" class="notification-modal" style="display: none;">
+        <div class="notification-content">
+            <div class="notification-icon" id="notificationIcon">⚠️</div>
+            <div class="notification-message" id="notificationMessage"></div>
+            <div class="notification-buttons">
+                <button id="notificationCancel" class="btn btn-secondary" style="display: none;">Cancelar</button>
+                <button id="notificationOk" class="btn btn-primary">Aceptar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            document.getElementById('themeIcon').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Cargar tema guardado
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.getElementById('themeIcon').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+    </script>
+</body>
+</html>

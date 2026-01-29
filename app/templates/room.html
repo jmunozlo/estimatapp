@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#667eea">
+    <title>EstimatApp - Sala de Poker</title>
+    <link rel="stylesheet" href="/static/styles.css?v=10.1">
+</head>
+<body>
+    <div class="container room-container">
+        <header class="room-header">
+            <!-- Fila 1: Navegación -->
+            <div class="header-nav">
+                <a href="/" class="btn-icon" title="Volver al inicio">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                </a>
+                <span class="header-logo">EstimatApp</span>
+                <button class="btn-icon" onclick="toggleTheme()" aria-label="Cambiar tema">
+                    <span id="themeIcon">🌙</span>
+                </button>
+            </div>
+            <!-- Fila 2: Info de sala -->
+            <div class="header-room">
+                <h1 id="roomName" class="room-name">Cargando...</h1>
+                <div class="room-id-badge">
+                    <span class="room-id-text">ID: <code id="roomIdDisplay">{{ room_id }}</code></span>
+                    <button onclick="copyRoomId()" class="btn-copy-sm" title="Copiar ID">
+                        <svg id="copyIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="room-main">
+            <section class="story-section">
+                <div class="story-header">
+                    <div class="story-input-group">
+                        <input 
+                            type="text" 
+                            id="storyName" 
+                            placeholder="Historia de usuario..."
+                            maxlength="100"
+                        >
+                        <button onclick="setStory()" class="btn btn-primary">Establecer</button>
+                    </div>
+                    <div id="facilitatorControls" class="facilitator-controls" style="display: none;">
+                        <div class="custom-select-wrapper">
+                            <select id="scaleSelect" onchange="changeScale()" class="custom-select" title="Seleccionar escala">
+                                <option value="fibonacci">🔢 Fibonacci</option>
+                                <option value="modified_fibonacci" selected>⭐ Fibonacci Modificada</option>
+                                <option value="powers_of_2">💪 Potencias de 2</option>
+                                <option value="t_shirt">👕 T-Shirt</option>
+                                <option value="linear">📏 Lineal</option>
+                                <option value="custom">🎨 Personalizada...</option>
+                            </select>
+                            <span class="select-arrow">▼</span>
+                        </div>
+                        <button onclick="toggleVotingMode()" id="votingModeBtn" class="btn btn-voting-mode" title="Cambiar modo de votación">
+                            <span id="votingModeIcon">👁️</span>
+                            <span id="votingModeText">Público</span>
+                        </button>
+                    </div>
+                </div>
+                <h2 id="currentStory" class="current-story">Esperando historia...</h2>
+            </section>
+
+            <section class="players-section">
+                <h3>Jugadores</h3>
+                <div id="playersList" class="players-grid"></div>
+            </section>
+
+            <section class="voting-section">
+                <h3>Tu Voto</h3>
+                <div id="votingCards" class="cards-grid"></div>
+            </section>
+
+            <section class="controls-section">
+                <button onclick="revealVotes()" id="revealBtn" class="btn btn-reveal" disabled style="display: none;">
+                    🎯 Revelar Votos
+                </button>
+                <button onclick="resetVotes()" id="resetBtn" class="btn btn-reset" style="display: none;">
+                    🔄 Nueva Ronda
+                </button>
+            </section>
+
+            <section id="resultsSection" class="results-section" style="display: none;">
+                <h3>Resultados</h3>
+                <div id="voteSummary" class="vote-summary"></div>
+                <div id="voteAverage" class="vote-average"></div>
+            </section>
+
+            <section id="historySection" class="history-section">
+                <div class="history-header-section">
+                    <h3>Historial de Votaciones</h3>
+                    <div class="history-controls">
+                        <label class="toggle-label" id="showVotesToggle" style="display: none;">
+                            <input type="checkbox" id="showVotesCheckbox" onchange="toggleShowVotes()">
+                            <span>Mostrar votos individuales</span>
+                        </label>
+                        <div id="totalPoints" class="total-points" style="display: none;">
+                            <span class="total-label">Total Sprint:</span>
+                            <span id="totalValue" class="total-value">0</span>
+                            <span class="total-unit">SP</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="historyList" class="history-list">
+                    <p class="empty-state">No hay votaciones en el historial</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal para escala personalizada -->
+    <div id="customScaleModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Escala Personalizada</h3>
+            <p>💡 Ingresa los valores separados por comas. Puedes usar números, letras o símbolos.</p>
+            <input type="text" id="customScaleInput" placeholder="1, 2, 4, 8, 16, ?, ☕" autocomplete="off">
+            <div class="modal-buttons">
+                <button onclick="closeCustomScaleModal()" class="btn btn-secondary">Cancelar</button>
+                <button onclick="saveCustomScale()" class="btn btn-primary">Guardar Escala</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="connectionStatus" class="connection-status">
+        <span class="status-indicator"></span>
+        <span class="status-text">Conectando...</span>
+    </div>
+
+    <script>
+        const ROOM_ID = "{{ room_id }}";
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            document.getElementById('themeIcon').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Cargar tema guardado
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.getElementById('themeIcon').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+    </script>
+    
+    <!-- Modal de Notificación -->
+    <div id="notificationModal" class="notification-modal" style="display: none;">
+        <div class="notification-content">
+            <div class="notification-icon" id="notificationIcon">⚠️</div>
+            <div class="notification-message" id="notificationMessage"></div>
+            <div class="notification-buttons">
+                <button id="notificationCancel" class="btn btn-secondary" style="display: none;">Cancelar</button>
+                <button id="notificationOk" class="btn btn-primary">Aceptar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/room.js"></script>
+</body>
+</html>
