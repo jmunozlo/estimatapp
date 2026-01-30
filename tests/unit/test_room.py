@@ -265,7 +265,7 @@ class TestRoomHistory:
         assert sample_room.history[0].story_name == "US-001"
 
     def test_update_or_add_history_updates_existing(self, sample_room: Room):
-        """Verifica que se actualiza historia existente."""
+        """Verifica que se actualiza historia existente y solo una queda vigente."""
         sample_room.update_or_add_history(
             story_name="US-001",
             votes={"Alice": "5"},
@@ -283,8 +283,11 @@ class TestRoomHistory:
             rounded_average="8",
         )
 
-        assert len(sample_room.history) == 1
-        assert sample_room.history[0].average == 8.0
+        vigentes = [
+            h for h in sample_room.history if h.story_name == "US-001" and not h.is_superseded
+        ]
+        assert len(vigentes) == 1
+        assert vigentes[0].average == 8.0
 
     def test_get_total_story_points(self, sample_room: Room):
         """Verifica el cálculo del total de story points."""

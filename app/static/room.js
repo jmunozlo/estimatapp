@@ -61,6 +61,14 @@ let roomState = null;
 let isObserver = false;
 let isFacilitator = false;
 let currentScale = [];
+let storyInputDirty = false; // Indica si el usuario ha modificado el input de historia sin guardar
+
+// Timers
+let sessionStartTime = null;
+let storyStartTime = null;
+let storyPausedTime = null; // Tiempo transcurrido cuando se pausó
+let storyTimerPaused = false;
+let timerInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     if (!playerId || !playerName) {
@@ -68,6 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/';
         });
         return;
+    }
+
+    // Detectar cuando el usuario modifica el input de historia
+    const storyInput = document.getElementById('storyName');
+    if (storyInput) {
+        storyInput.addEventListener('input', () => {
+            storyInputDirty = true;
+        });
     }
 
     // Verificar que la sala existe antes de conectar
@@ -124,6 +140,7 @@ function connectWebSocket() {
         console.log('Conectado al WebSocket');
         reconnectAttempts = 0; // Resetear contador al conectar
         updateConnectionStatus(true);
+        startTimers();
     };
 
     ws.onmessage = (event) => {
@@ -138,6 +155,7 @@ function connectWebSocket() {
 
     ws.onclose = (event) => {
         console.log('Desconectado del WebSocket, código:', event.code);
+        stopTimers();
         updateConnectionStatus(false);
         
         // Si fue rechazado (403), la sala no existe o el jugador no está registrado
@@ -163,10 +181,18 @@ function connectWebSocket() {
     };
 }
 
+let firstLoad = true;
+
 function handleWebSocketMessage(message) {
     if (message.type === 'room_update') {
         roomState = message.data;
         updateRoomUI();
+        
+        // Verificar tour en la primera carga
+        if (firstLoad) {
+            firstLoad = false;
+            checkAndStartTour();
+        }
     } else if (message.type === 'error') {
         console.error('Error del servidor:', message.message);
         showNotification(message.message, 'error');
@@ -184,9 +210,9 @@ function updateRoomUI() {
     const currentStory = document.getElementById('currentStory');
     currentStory.textContent = roomState.story_name || 'Esperando historia...';
     
-    // Actualizar el campo de entrada de historia
+    // Actualizar el campo de entrada de historia (solo si no está siendo editado)
     const storyNameInput = document.getElementById('storyName');
-    if (storyNameInput) {
+    if (storyNameInput && !storyInputDirty) {
         storyNameInput.value = roomState.story_name || '';
     }
 
@@ -250,13 +276,13 @@ function updateRoomUI() {
         if (storyNameInput) storyNameInput.disabled = true;
         if (setStoryBtn) {
             setStoryBtn.disabled = true;
-            setStoryBtn.title = 'Presiona "Nueva Ronda" para establecer una nueva historia';
+            setStoryBtn.setAttribute('data-tooltip', 'Presiona "Nueva Ronda de Votación" para establecer una nueva historia');
         }
     } else {
         if (storyNameInput) storyNameInput.disabled = false;
         if (setStoryBtn) {
             setStoryBtn.disabled = false;
-            setStoryBtn.title = '';
+            setStoryBtn.setAttribute('data-tooltip', 'Establecer la historia actual para votación');
         }
     }
 }
@@ -266,14 +292,16 @@ function updateVotingModeUI() {
     const votingModeIcon = document.getElementById('votingModeIcon');
     const votingModeText = document.getElementById('votingModeText');
 
+    if (!votingModeBtn || !votingModeIcon || !votingModeText) return;
+
     if (roomState.voting_mode === 'anonymous') {
         votingModeIcon.textContent = '🔒';
-        votingModeText.textContent = 'Anónimo';
-        votingModeBtn.title = 'Modo anónimo: Los votos individuales están ocultos';
+        votingModeText.textContent = 'Modo Anónimo';
+        votingModeBtn.setAttribute('data-tooltip', 'Modo anónimo: Solo se muestra el resumen de votos, no quién votó qué. Clic para cambiar a público.');
     } else {
         votingModeIcon.textContent = '👁️';
-        votingModeText.textContent = 'Público';
-        votingModeBtn.title = 'Modo público: Los votos individuales son visibles';
+        votingModeText.textContent = 'Modo Público';
+        votingModeBtn.setAttribute('data-tooltip', 'Modo público: Todos pueden ver los votos individuales. Clic para cambiar a anónimo.');
     }
 }
 
@@ -395,6 +423,8 @@ function revealVotes() {
 
 function resetVotes() {
     currentVote = null;
+    // Pausar el timer de historia
+    pauseStoryTimer();
 
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -413,6 +443,12 @@ function setStory() {
         showNotification('Presiona "Nueva Ronda" antes de establecer una nueva historia', 'warning');
         return;
     }
+
+    // Resetear flag de dirty ya que se guardó
+    storyInputDirty = false;
+
+    // Iniciar timer de historia cuando se establece una nueva
+    startStoryTimer();
 
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -498,6 +534,12 @@ function updateHistory() {
                 minute: '2-digit'
             });
 
+            // Determinar si es una votación superseded (tachada)
+            const isSuperseded = item.is_superseded === true;
+            const supersededClass = isSuperseded ? 'history-item-superseded' : '';
+            const roundBadge = item.round_number > 1 ? `<span class="round-badge">Ronda ${item.round_number}</span>` : '';
+            const supersededBadge = isSuperseded ? '<span class="superseded-badge">Reemplazada</span>' : '';
+
             // Votos individuales (solo si está activado el toggle y en modo público)
             let votesHtml = '';
             if (roomState.voting_mode === 'public' && item.votes && showIndividualVotes) {
@@ -524,20 +566,27 @@ function updateHistory() {
                 ? `${item.rounded_average} SP` 
                 : (item.average !== null && item.average !== undefined ? item.average.toFixed(2) : 'N/A');
 
+            // Solo mostrar botón de re-votar si NO está superseded
+            const revoteButton = (isFacilitator && !isSuperseded) ? `
+                <div class="history-actions">
+                    <button class="btn-revote" onclick="revoteStory('${escapeHtml(item.story_name)}', ${index})" data-tooltip="Volver a estimar esta historia. Se reiniciará la votación actual.">
+                        🔄 Re-votar
+                    </button>
+                </div>
+            ` : '';
+
             return `
-                <div class="history-item">
+                <div class="history-item ${supersededClass}">
                     <div class="history-item-header-wrapper">
                         <div>
-                            <div class="history-title">${escapeHtml(item.story_name)}</div>
+                            <div class="history-title">
+                                ${escapeHtml(item.story_name)}
+                                ${roundBadge}
+                                ${supersededBadge}
+                            </div>
                             <div class="history-date">${formattedDate}</div>
                         </div>
-                        ${isFacilitator ? `
-                        <div class="history-actions">
-                            <button class="btn-revote" onclick="revoteStory('${escapeHtml(item.story_name)}', ${index})" title="Votar de nuevo esta historia">
-                                🔄 Re-votar
-                            </button>
-                        </div>
-                        ` : ''}
+                        ${revoteButton}
                     </div>
                     <div class="history-stats">
                         <div class="history-stat">
@@ -563,19 +612,13 @@ function revoteStory(storyName, historyIndex) {
 
     showNotification(`¿Deseas votar de nuevo la historia "${storyName}"?`, 'question', true).then((confirmed) => {
         if (confirmed) {
-            // Resetear votos actuales
+            // Usar la nueva acción revote_story que marca la historia como superseded
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
-                    action: 'reset'
+                    action: 'revote_story',
+                    story_name: storyName
                 }));
             }
-
-            // Esperar un poco y establecer la historia
-            setTimeout(() => {
-                const storyInput = document.getElementById('storyName');
-                storyInput.value = storyName;
-                setStory();
-            }, 300);
         }
     });
 }
@@ -795,3 +838,370 @@ window.addEventListener('beforeunload', () => {
         ws.close();
     }
 });
+// =====================
+// Guided Tour System
+// =====================
+
+const tourSteps = [
+    {
+        element: '#storyName',
+        title: '📝 Historia de Usuario',
+        content: 'Aquí el facilitador escribe la historia de usuario que el equipo va a estimar. Ejemplo: "Como usuario quiero poder filtrar productos por categoría".',
+        position: 'bottom'
+    },
+    {
+        element: '#votingCards',
+        title: '🗳️ Cartas de Votación',
+        content: 'Selecciona una carta para votar tu estimación. Los números representan el esfuerzo relativo (Story Points). Si no estás seguro, puedes usar "?" para indicar que necesitas más información.',
+        position: 'top'
+    },
+    {
+        element: '#playersList',
+        title: '👥 Jugadores',
+        content: 'Aquí puedes ver a todos los participantes. El ✓ indica quién ya votó y el ⏳ quién está pendiente. El facilitador puede ver cuando todos han votado.',
+        position: 'bottom'
+    },
+    {
+        element: '.controls-section',
+        title: '🎯 Controles de Votación',
+        content: 'El facilitador usa estos botones para revelar los votos cuando todos han votado, o iniciar una nueva ronda para la siguiente historia.',
+        position: 'top',
+        facilitatorOnly: true
+    },
+    {
+        element: '#historySection',
+        title: '📊 Historial de Votaciones',
+        content: 'Todas las estimaciones completadas aparecen aquí con el resumen de votos y el promedio. El facilitador puede re-votar una historia si es necesario.',
+        position: 'top'
+    }
+];
+
+let currentTourStep = 0;
+let tourActive = false;
+
+function shouldShowTour() {
+    return !localStorage.getItem('tourCompleted');
+}
+
+function startTour() {
+    currentTourStep = 0;
+    tourActive = true;
+    document.getElementById('tourOverlay').style.display = 'block';
+    showTourStep();
+}
+
+function endTour() {
+    tourActive = false;
+    document.getElementById('tourOverlay').style.display = 'none';
+    localStorage.setItem('tourCompleted', 'true');
+}
+
+function nextTourStep() {
+    currentTourStep++;
+    
+    // Saltar pasos de facilitador si no es facilitador
+    while (currentTourStep < tourSteps.length && 
+           tourSteps[currentTourStep].facilitatorOnly && 
+           !isFacilitator) {
+        currentTourStep++;
+    }
+    
+    if (currentTourStep >= tourSteps.length) {
+        endTour();
+        showToast('🎉 ¡Tutorial completado! Ya estás listo para estimar.');
+    } else {
+        showTourStep();
+    }
+}
+
+function prevTourStep() {
+    currentTourStep--;
+    
+    // Saltar pasos de facilitador si no es facilitador
+    while (currentTourStep >= 0 && 
+           tourSteps[currentTourStep].facilitatorOnly && 
+           !isFacilitator) {
+        currentTourStep--;
+    }
+    
+    if (currentTourStep < 0) {
+        currentTourStep = 0;
+    }
+    showTourStep();
+}
+
+function showTourStep() {
+    const step = tourSteps[currentTourStep];
+    const element = document.querySelector(step.element);
+    
+    if (!element) {
+        // Si el elemento no existe, pasar al siguiente
+        nextTourStep();
+        return;
+    }
+    
+    // Calcular pasos totales (excluyendo los de facilitador si no es facilitador)
+    const totalSteps = tourSteps.filter(s => !s.facilitatorOnly || isFacilitator).length;
+    const currentStepNum = tourSteps.slice(0, currentTourStep + 1).filter(s => !s.facilitatorOnly || isFacilitator).length;
+    
+    // Actualizar indicador de paso
+    document.getElementById('tourStepIndicator').textContent = `Paso ${currentStepNum} de ${totalSteps}`;
+    
+    // Actualizar contenido
+    document.getElementById('tourContent').innerHTML = `
+        <h4>${step.title}</h4>
+        <p>${step.content}</p>
+    `;
+    
+    // Mostrar/ocultar botón anterior
+    const prevBtn = document.getElementById('tourPrev');
+    prevBtn.style.display = currentTourStep > 0 ? 'inline-block' : 'none';
+    
+    // Cambiar texto del botón siguiente en el último paso
+    const nextBtn = document.getElementById('tourNext');
+    const isLastStep = currentStepNum >= totalSteps;
+    nextBtn.textContent = isLastStep ? '✓ Finalizar' : 'Siguiente →';
+    
+    // Primero hacer scroll al elemento, luego posicionar
+    scrollToElementAndPosition(element, step.position);
+}
+
+function scrollToElementAndPosition(element, position) {
+    // Scroll suave al elemento
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Esperar a que termine el scroll antes de posicionar
+    setTimeout(() => {
+        positionSpotlight(element);
+        positionTooltip(element, position);
+    }, 400);
+}
+
+function positionSpotlight(element) {
+    const spotlight = document.getElementById('tourSpotlight');
+    const rect = element.getBoundingClientRect();
+    const padding = 8;
+    
+    // Usar posición fija relativa al viewport
+    spotlight.style.position = 'fixed';
+    spotlight.style.top = `${rect.top - padding}px`;
+    spotlight.style.left = `${rect.left - padding}px`;
+    spotlight.style.width = `${rect.width + padding * 2}px`;
+    spotlight.style.height = `${rect.height + padding * 2}px`;
+}
+
+function positionTooltip(element, preferredPosition) {
+    const tooltip = document.getElementById('tourTooltip');
+    const rect = element.getBoundingClientRect();
+    const padding = 16;
+    
+    // Resetear estilos para medir correctamente
+    tooltip.style.top = '0';
+    tooltip.style.left = '0';
+    tooltip.style.position = 'fixed';
+    
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Determinar mejor posición según el espacio disponible
+    let position = preferredPosition;
+    
+    // En móvil, preferir arriba o abajo
+    if (viewportWidth < 600) {
+        position = rect.top > viewportHeight / 2 ? 'top' : 'bottom';
+    } else {
+        // Verificar si hay espacio para la posición preferida
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const spaceLeft = rect.left;
+        const spaceRight = viewportWidth - rect.right;
+        
+        if (position === 'bottom' && spaceBelow < tooltipRect.height + padding) {
+            position = spaceAbove > spaceBelow ? 'top' : 'bottom';
+        } else if (position === 'top' && spaceAbove < tooltipRect.height + padding) {
+            position = spaceBelow > spaceAbove ? 'bottom' : 'top';
+        }
+    }
+    
+    tooltip.setAttribute('data-position', position);
+    
+    let top, left;
+    
+    switch (position) {
+        case 'bottom':
+            top = rect.bottom + padding;
+            left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+            break;
+        case 'top':
+            top = rect.top - tooltipRect.height - padding;
+            left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+            break;
+        case 'left':
+            top = rect.top + (rect.height / 2) - (tooltipRect.height / 2);
+            left = rect.left - tooltipRect.width - padding;
+            break;
+        case 'right':
+            top = rect.top + (rect.height / 2) - (tooltipRect.height / 2);
+            left = rect.right + padding;
+            break;
+        default:
+            top = rect.bottom + padding;
+            left = rect.left;
+    }
+    
+    // Asegurar que no se salga de la pantalla horizontalmente
+    const maxLeft = viewportWidth - tooltipRect.width - 12;
+    const minLeft = 12;
+    left = Math.max(minLeft, Math.min(left, maxLeft));
+    
+    // Asegurar que no se salga verticalmente
+    const maxTop = viewportHeight - tooltipRect.height - 12;
+    const minTop = 12;
+    top = Math.max(minTop, Math.min(top, maxTop));
+    
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+}
+
+// Reposicionar al hacer resize o scroll
+function updateTourPosition() {
+    if (!tourActive) return;
+    
+    const step = tourSteps[currentTourStep];
+    if (!step) return;
+    
+    const element = document.querySelector(step.element);
+    if (!element) return;
+    
+    positionSpotlight(element);
+    positionTooltip(element, step.position);
+}
+
+// Debounce para evitar demasiadas actualizaciones
+let resizeTimeout;
+window.addEventListener('resize', () => {
+    if (tourActive) {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(updateTourPosition, 100);
+    }
+});
+
+// Iniciar tour automáticamente la primera vez (después de cargar la sala)
+function checkAndStartTour() {
+    if (shouldShowTour() && roomState) {
+        setTimeout(() => {
+            startTour();
+        }, 1500); // Esperar a que la UI se estabilice
+    }
+}
+
+// Escuchar tecla Escape para cerrar tour
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && tourActive) {
+        endTour();
+    }
+});
+
+// =====================
+// Session & Story Timers
+// =====================
+
+function startTimers() {
+    // Iniciar tiempo de sesión
+    sessionStartTime = Date.now();
+    // El timer de historia NO inicia aquí, solo cuando se establece una historia
+    storyStartTime = null;
+    
+    // Actualizar cada segundo
+    timerInterval = setInterval(updateTimerDisplays, 1000);
+    updateTimerDisplays();
+}
+
+function stopTimers() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+}
+
+function resetStoryTimer() {
+    storyStartTime = Date.now();
+    // Quitar warning al reiniciar
+    const storyTimerBadge = document.getElementById('storyTimer')?.closest('.timer-badge');
+    if (storyTimerBadge) {
+        storyTimerBadge.classList.remove('timer-warning');
+    }
+    updateTimerDisplays();
+}
+
+function startStoryTimer() {
+    storyStartTime = Date.now();
+    storyTimerPaused = false;
+    storyPausedTime = null;
+    updateTimerDisplays();
+}
+
+function pauseStoryTimer() {
+    if (storyStartTime && !storyTimerPaused) {
+        storyPausedTime = Date.now() - storyStartTime;
+        storyTimerPaused = true;
+        updateTimerDisplays();
+    }
+}
+
+function updateTimerDisplays() {
+    const sessionTimerEl = document.getElementById('sessionTimer');
+    const storyTimerEl = document.getElementById('storyTimer');
+    const storyTimerBadge = storyTimerEl?.closest('.timer-badge');
+    
+    if (sessionStartTime && sessionTimerEl) {
+        const sessionElapsed = Date.now() - sessionStartTime;
+        sessionTimerEl.textContent = formatTime(sessionElapsed);
+    }
+    
+    if (storyTimerEl) {
+        if (storyTimerPaused && storyPausedTime !== null) {
+            // Timer pausado - mostrar tiempo congelado con indicador
+            storyTimerEl.textContent = formatTime(storyPausedTime) + ' ⏸';
+            // Parpadear en estado pausado
+            if (storyTimerBadge) {
+                storyTimerBadge.classList.add('timer-paused');
+                storyTimerBadge.classList.remove('timer-warning');
+            }
+        } else if (storyStartTime) {
+            const storyElapsed = Date.now() - storyStartTime;
+            storyTimerEl.textContent = formatTime(storyElapsed);
+            
+            // Agregar warning si la historia lleva más de 3 minutos
+            if (storyTimerBadge) {
+                storyTimerBadge.classList.remove('timer-paused');
+                if (storyElapsed > 3 * 60 * 1000) { // 3 minutos
+                    storyTimerBadge.classList.add('timer-warning');
+                } else {
+                    storyTimerBadge.classList.remove('timer-warning');
+                }
+            }
+        } else {
+            // Sin historia establecida
+            storyTimerEl.textContent = '--:--';
+            if (storyTimerBadge) {
+                storyTimerBadge.classList.remove('timer-paused');
+            }
+        }
+    }
+}
+
+function formatTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (minutes >= 60) {
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return `${hours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}

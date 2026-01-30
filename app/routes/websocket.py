@@ -79,6 +79,8 @@ def _build_history_data(room: Room) -> list[dict[str, Any]]:
             "average": story.average,
             "rounded_average": story.rounded_average,
             "voted_at": story.voted_at.isoformat(),
+            "round_number": getattr(story, "round_number", 1),
+            "is_superseded": getattr(story, "is_superseded", False),
         }
         if room.voting_mode.value == "public":
             history_item["votes"] = story.votes
@@ -156,6 +158,45 @@ async def _handle_set_story(websocket: WebSocket, room: Room, data: dict[str, An
         return
 
     room.story_name = story_name
+    await broadcast_room_state(room.id)
+
+
+async def _handle_revote_story(
+    websocket: WebSocket,
+    room: Room,
+    player: Player,
+    data: dict[str, Any],
+) -> None:
+    """Maneja la acción de re-votar una historia del historial."""
+    if not player.is_facilitator:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "message": "Solo el facilitador puede iniciar una re-votación",
+            }
+        )
+        return
+
+    story_name = data.get("story_name", "").strip()
+    if not story_name:
+        return
+
+    # Si hay una historia activa con votos, guardarla primero
+    if room.story_name and room.status == RoomStatus.REVEALED:
+        room.reset_votes()
+
+    # Marcar las historias anteriores con el mismo nombre como superseded
+    for story in room.history:
+        if story.story_name == story_name and not story.is_superseded:
+            story.is_superseded = True
+
+    # Resetear votos de jugadores sin guardar historial
+    for player_obj in room.players.values():
+        player_obj.reset_vote()
+
+    # Establecer la historia para re-votación
+    room.story_name = story_name
+    room.status = RoomStatus.VOTING
     await broadcast_room_state(room.id)
 
 
@@ -278,6 +319,8 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, player_id: str)
                 await _handle_reset(websocket, room, player)
             elif action == "set_story":
                 await _handle_set_story(websocket, room, data)
+            elif action == "revote_story":
+                await _handle_revote_story(websocket, room, player, data)
             elif action == "toggle_voting_mode":
                 await _handle_toggle_voting_mode(websocket, room, player)
             elif action == "change_scale":

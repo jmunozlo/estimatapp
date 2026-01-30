@@ -1,7 +1,19 @@
-"""Entidad StoryHistory del dominio."""
-
 from dataclasses import dataclass, field
 from datetime import datetime
+
+
+@dataclass
+class StoryHistoryParams:
+    story_name: str
+    votes: dict[str, str]
+    vote_summary: dict[str, int]
+    average: float | None = None
+    rounded_average: str | None = None
+    round_number: int = 1
+    is_superseded: bool = False
+
+
+"""Entidad StoryHistory del dominio."""
 
 
 @dataclass
@@ -17,6 +29,8 @@ class StoryHistory:
     average: float | None
     rounded_average: str | None
     voted_at: datetime = field(default_factory=datetime.now)
+    round_number: int = 1  # Número de ronda de votación
+    is_superseded: bool = False  # True si fue reemplazada por una re-votación
 
     def get_total_voters(self) -> int:
         """Obtiene el número total de votantes."""
@@ -41,6 +55,8 @@ class StoryHistory:
             "average": self.average,
             "rounded_average": self.rounded_average,
             "voted_at": self.voted_at.isoformat(),
+            "round_number": self.round_number,
+            "is_superseded": self.is_superseded,
         }
         if include_individual_votes:
             data["votes"] = self.votes
@@ -54,6 +70,8 @@ class StoryHistory:
         vote_summary: dict[str, int],
         average: float | None = None,
         rounded_average: str | None = None,
+        round_number: int = 1,
+        is_superseded: bool = False,
     ) -> "StoryHistory":
         """Factory method para crear un historial de historia."""
         return cls(
@@ -62,4 +80,6 @@ class StoryHistory:
             vote_summary=vote_summary.copy(),
             average=average,
             rounded_average=rounded_average,
+            round_number=round_number,
+            is_superseded=is_superseded,
         )

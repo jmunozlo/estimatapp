@@ -168,27 +168,23 @@ class Room:
         average: float | None,
         rounded_average: str | None,
     ) -> None:
-        """Actualiza una historia existente en el historial o agrega una nueva."""
-        # Buscar si ya existe una historia con el mismo nombre
-        for i, story in enumerate(self.history):
+        """Agrega una historia al historial. Si ya existe, marca las anteriores como superseded."""
+        # Contar cuántas rondas previas hay para esta historia y marcarlas como superseded
+        round_number = 1
+        for story in self.history:
             if story.story_name == story_name:
-                # Actualizar la historia existente
-                self.history[i] = StoryHistory.create(
-                    story_name=story_name,
-                    votes=votes,
-                    vote_summary=vote_summary,
-                    average=average,
-                    rounded_average=rounded_average,
-                )
-                return
+                story.is_superseded = True  # Marcar la anterior como reemplazada
+                round_number = max(round_number, story.round_number + 1)
 
-        # Si no existe, agregar nueva
+        # Agregar nueva entrada (nunca reemplazar)
         story = StoryHistory.create(
             story_name=story_name,
             votes=votes,
             vote_summary=vote_summary,
             average=average,
             rounded_average=rounded_average,
+            round_number=round_number,
+            is_superseded=False,
         )
         self.history.append(story)
 
@@ -234,19 +230,17 @@ class Room:
         self.status = RoomStatus.VOTING
 
     def get_total_story_points(self) -> float:
-        """Calcula el total de story points de todas las historias.
+        """Calcula el total de story points de todas las historias vigentes.
 
-        Usa valores redondeados y evita contar historias duplicadas.
+        Solo suma las historias que no han sido reemplazadas (is_superseded=False).
         """
         total = 0.0
-        counted_stories: set[str] = set()
 
-        # Iterar en orden inverso para tomar solo la última votación de cada historia
-        for story in reversed(self.history):
-            if story.story_name not in counted_stories and story.rounded_average:
+        for story in self.history:
+            # Solo sumar las historias que no han sido reemplazadas
+            if not story.is_superseded and story.rounded_average:
                 with suppress(ValueError):
                     total += float(story.rounded_average)
-                counted_stories.add(story.story_name)
 
         return total
 

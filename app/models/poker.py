@@ -74,6 +74,8 @@ class StoryHistory:
     average: float | None
     rounded_average: str | None  # Promedio redondeado a la escala
     voted_at: datetime = field(default_factory=datetime.now)
+    round_number: int = 1  # Número de ronda de votación
+    is_superseded: bool = False  # True si fue reemplazada por una re-votación
 
 
 @dataclass
@@ -142,18 +144,16 @@ class Room:
         return closest[1]
 
     def get_total_story_points(self) -> float:
-        """Calcula el total de story points de todas las historias (usando valores redondeados)."""
+        """Calcula el total de story points de todas las historias (solo las vigentes)."""
         total = 0.0
-        # Usar un conjunto para evitar contar historias duplicadas por nombre
-        counted_stories: set[str] = set()
 
-        # Iterar en orden inverso para tomar solo la última votación de cada historia
-        for story in reversed(self.history):
-            if story.story_name not in counted_stories and story.rounded_average:
+        # Solo sumar las historias que no han sido reemplazadas
+        for story in self.history:
+            is_superseded = getattr(story, "is_superseded", False)
+            if not is_superseded and story.rounded_average:
                 with suppress(ValueError):
                     # Si no es numérico, se ignora automáticamente
                     total += float(story.rounded_average)
-                counted_stories.add(story.story_name)
 
         return total
 
@@ -165,33 +165,26 @@ class Room:
         average: float | None,
         rounded_average: str | None,
     ) -> None:
-        """Actualiza una historia existente en el historial o agrega una nueva."""
-        # Buscar si ya existe una historia con el mismo nombre
-        for i, story in enumerate(self.history):
-            if story.story_name == story_name:
-                # Actualizar la historia existente
-                self.history[i] = StoryHistory(
-                    story_name=story_name,
-                    votes=votes.copy(),
-                    vote_summary=vote_summary.copy(),
-                    average=average,
-                    rounded_average=rounded_average,
-                )
-                return
-
-        # Si no existe, agregar nueva
+        """
+        Agrega una historia al historial.
+        Si ya existe, marca las anteriores como superseded y solo deja la última vigente.
+        """
+        # Eliminar todas las entradas previas de la historia
+        self.history = [h for h in self.history if h.story_name != story_name]
         story = StoryHistory(
             story_name=story_name,
             votes=votes.copy(),
             vote_summary=vote_summary.copy(),
             average=average,
             rounded_average=rounded_average,
+            round_number=1,
+            is_superseded=False,
         )
         self.history.append(story)
 
     def reset_votes(self) -> None:
         """Resetea todos los votos y vuelve al estado de votación."""
-        # Guardar en historial si había una historia activa con votos (sin importar el estado)
+        # Guardar en historial si había una historia activa con votos
         if self.story_name:
             votes = {}
             vote_summary: dict[str, int] = {}
@@ -212,8 +205,6 @@ class Room:
             if votes:  # Solo guardar si hubo votos
                 average = sum(numeric_votes) / len(numeric_votes) if numeric_votes else None
                 rounded_average = self.round_to_scale(average) if average is not None else None
-
-                # Usar el nuevo método que actualiza o agrega
                 self.update_or_add_history(
                     story_name=self.story_name,
                     votes=votes,
@@ -221,7 +212,6 @@ class Room:
                     average=average,
                     rounded_average=rounded_average,
                 )
-
         # Resetear votos y limpiar nombre de historia
         for player in self.players.values():
             player.reset_vote()

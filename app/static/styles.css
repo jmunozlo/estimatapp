@@ -253,7 +253,8 @@ input[type="text"]:focus {
     overflow: hidden;
 }
 
-.btn::before {
+/* Efecto ripple - solo para botones sin tooltip */
+.btn:not([data-tooltip])::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -266,7 +267,7 @@ input[type="text"]:focus {
     transition: width 0.6s, height 0.6s;
 }
 
-.btn:hover::before {
+.btn:not([data-tooltip]):hover::before {
     width: 400px;
     height: 400px;
 }
@@ -487,6 +488,13 @@ input[type="text"]:focus {
     white-space: nowrap;
 }
 
+.room-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
 .room-id-badge {
     display: flex;
     align-items: center;
@@ -508,6 +516,84 @@ input[type="text"]:focus {
     font-weight: 600;
     color: var(--primary);
     margin-left: 0.25rem;
+}
+
+/* Session Timers */
+.session-timers {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timer-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    transition: all 0.2s ease;
+}
+
+.timer-badge .timer-icon {
+    font-size: 0.85rem;
+}
+
+.timer-badge .timer-label {
+    font-weight: 500;
+    display: none;
+}
+
+.timer-badge .timer-value {
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 3.5rem;
+    text-align: center;
+}
+
+.timer-badge.timer-story {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: rgba(102, 126, 234, 0.3);
+}
+
+.timer-badge.timer-story .timer-value {
+    color: var(--primary);
+}
+
+/* Timer warning cuando pasa de cierto tiempo */
+.timer-badge.timer-warning {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.timer-badge.timer-warning .timer-value {
+    color: var(--warning);
+}
+
+/* Timer pausado - parpadeo suave */
+.timer-badge.timer-paused {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: rgba(99, 102, 241, 0.4);
+    animation: timerPausedPulse 1.5s ease-in-out infinite;
+}
+
+.timer-badge.timer-paused .timer-value {
+    color: var(--primary);
+}
+
+@keyframes timerPausedPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@media (min-width: 600px) {
+    .timer-badge .timer-label {
+        display: inline;
+    }
 }
 
 .btn-copy-sm {
@@ -1088,6 +1174,52 @@ input[type="text"]:focus {
     box-shadow: var(--shadow-md);
 }
 
+/* Votación superseded (reemplazada) - tachada */
+.history-item.history-item-superseded {
+    opacity: 0.6;
+    border-left-color: var(--text-lighter);
+    background: var(--bg-alt);
+}
+
+.history-item.history-item-superseded .history-title {
+    text-decoration: line-through;
+    color: var(--text-light);
+}
+
+.history-item.history-item-superseded .history-stat-value {
+    text-decoration: line-through;
+    color: var(--text-light);
+}
+
+.history-item.history-item-superseded:hover {
+    transform: none;
+}
+
+/* Badges para rondas */
+.round-badge {
+    display: inline-block;
+    background: var(--primary);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.superseded-badge {
+    display: inline-block;
+    background: var(--text-lighter);
+    color: var(--text-light);
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 500;
+    vertical-align: middle;
+}
+
 .history-header {
     display: flex;
     justify-content: space-between;
@@ -1135,10 +1267,14 @@ input[type="text"]:focus {
     white-space: nowrap;
     box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
     position: relative;
+}
+
+/* Efecto ripple solo si no tiene tooltip */
+.btn-revote:not([data-tooltip]) {
     overflow: hidden;
 }
 
-.btn-revote::before {
+.btn-revote:not([data-tooltip])::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -1151,7 +1287,7 @@ input[type="text"]:focus {
     transition: width 0.6s, height 0.6s;
 }
 
-.btn-revote:hover::before {
+.btn-revote:not([data-tooltip]):hover::before {
     width: 300px;
     height: 300px;
 }
@@ -1866,5 +2002,415 @@ footer {
 
     .players-grid {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+}
+/* ===================== */
+/* Tooltips Personalizados */
+/* ===================== */
+
+[data-tooltip] {
+    position: relative;
+    overflow: visible !important;
+}
+
+[data-tooltip]::before,
+[data-tooltip]::after {
+    position: absolute;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    z-index: 9999;
+}
+
+/* Flecha del tooltip */
+[data-tooltip]::before {
+    content: '';
+    border: 6px solid transparent;
+    border-bottom-color: var(--card);
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-2px);
+}
+
+/* Contenido del tooltip */
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    background: var(--card);
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: normal;
+    min-width: 150px;
+    max-width: 280px;
+    width: max-content;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Hover para mostrar */
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Focus para accesibilidad */
+[data-tooltip]:focus-visible::before,
+[data-tooltip]:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Específico para botones - asegurar que funcione */
+button[data-tooltip],
+.btn[data-tooltip] {
+    overflow: visible !important;
+}
+
+button[data-tooltip]::before,
+button[data-tooltip]::after,
+.btn[data-tooltip]::before,
+.btn[data-tooltip]::after {
+    z-index: 10000;
+}
+
+/* Posición arriba (para botones al fondo de página) */
+[data-tooltip-pos="top"]::before {
+    top: auto;
+    bottom: 100%;
+    border-bottom-color: transparent;
+    border-top-color: var(--card);
+    transform: translateX(-50%) translateY(2px);
+}
+
+[data-tooltip-pos="top"]::after {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+
+/* Posición izquierda */
+[data-tooltip-pos="left"]::before {
+    top: 50%;
+    left: auto;
+    right: 100%;
+    border-bottom-color: transparent;
+    border-right-color: var(--card);
+    transform: translateY(-50%) translateX(2px);
+}
+
+[data-tooltip-pos="left"]::after {
+    top: 50%;
+    left: auto;
+    right: calc(100% + 8px);
+    transform: translateY(-50%);
+}
+
+/* Posición derecha */
+[data-tooltip-pos="right"]::before {
+    top: 50%;
+    left: 100%;
+    right: auto;
+    border-bottom-color: transparent;
+    border-left-color: var(--card);
+    transform: translateY(-50%) translateX(-2px);
+}
+
+[data-tooltip-pos="right"]::after {
+    top: 50%;
+    left: calc(100% + 8px);
+    right: auto;
+    transform: translateY(-50%);
+}
+
+/* Dark mode ajustes */
+[data-theme="dark"] [data-tooltip]::after {
+    background: var(--card);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] [data-tooltip]::before {
+    border-bottom-color: var(--card);
+}
+
+[data-theme="dark"] [data-tooltip-pos="top"]::before {
+    border-top-color: var(--card);
+    border-bottom-color: transparent;
+}
+
+/* ===================== */
+/* Guided Tour */
+/* ===================== */
+
+.tour-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* Fondo oscuro semi-transparente */
+.tour-overlay::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    pointer-events: none;
+}
+
+.tour-spotlight {
+    position: fixed;
+    border-radius: 8px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.75);
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 10001;
+    background: transparent;
+}
+
+.tour-spotlight::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border: 3px solid var(--primary);
+    border-radius: 12px;
+    animation: tour-pulse 2s infinite;
+}
+
+@keyframes tour-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.tour-tooltip {
+    position: fixed;
+    background: var(--card);
+    border-radius: 16px;
+    padding: 1.25rem;
+    min-width: 280px;
+    max-width: 360px;
+    width: calc(100vw - 2rem);
+    box-shadow: var(--shadow-xl), 0 0 40px rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    pointer-events: auto;
+    z-index: 10002;
+    animation: tour-fade-in 0.3s ease;
+}
+
+@keyframes tour-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Flecha del tooltip */
+.tour-tooltip::before {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-right: none;
+    border-bottom: none;
+    transform: rotate(45deg);
+}
+
+.tour-tooltip[data-position="bottom"]::before {
+    top: -8px;
+    left: 24px;
+}
+
+.tour-tooltip[data-position="top"]::before {
+    bottom: -8px;
+    left: 24px;
+    transform: rotate(225deg);
+}
+
+.tour-tooltip[data-position="left"]::before {
+    right: -8px;
+    top: 24px;
+    transform: rotate(135deg);
+}
+
+.tour-tooltip[data-position="right"]::before {
+    left: -8px;
+    top: 24px;
+    transform: rotate(-45deg);
+}
+
+.tour-tooltip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.tour-step-indicator {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary);
+    background: rgba(102, 126, 234, 0.1);
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+}
+
+.tour-close {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.tour-close:hover {
+    color: var(--danger);
+}
+
+.tour-tooltip-content {
+    margin-bottom: 1rem;
+}
+
+.tour-tooltip-content h4 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tour-tooltip-content p {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.tour-tooltip-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    gap: 0.5rem;
+}
+
+.tour-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tour-btn {
+    padding: 0.5rem 0.875rem !important;
+    font-size: 0.8rem !important;
+    white-space: nowrap;
+}
+
+/* Header actions container */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Responsive tour - Tablets */
+@media (max-width: 768px) {
+    .tour-tooltip {
+        min-width: 260px;
+        max-width: calc(100vw - 1.5rem);
+        padding: 1rem;
+    }
+    
+    .tour-tooltip-content h4 {
+        font-size: 0.95rem;
+    }
+    
+    .tour-tooltip-content p {
+        font-size: 0.8rem;
+    }
+}
+
+/* Responsive tour - Móviles */
+@media (max-width: 480px) {
+    .tour-tooltip {
+        min-width: auto;
+        max-width: calc(100vw - 1rem);
+        padding: 0.875rem;
+        left: 0.5rem !important;
+        right: 0.5rem;
+        width: calc(100vw - 1rem);
+    }
+    
+    .tour-tooltip::before {
+        display: none; /* Ocultar flecha en móvil */
+    }
+    
+    .tour-tooltip-header {
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .tour-tooltip-content {
+        margin-bottom: 0.75rem;
+    }
+    
+    .tour-tooltip-content h4 {
+        font-size: 0.9rem;
+    }
+    
+    .tour-tooltip-content p {
+        font-size: 0.8rem;
+        line-height: 1.4;
+    }
+    
+    .tour-tooltip-footer {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .tour-nav {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .tour-btn {
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.75rem !important;
+    }
+    
+    #tourSkip {
+        flex: 0 0 auto;
     }
 }

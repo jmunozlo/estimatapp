@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="theme-color" content="#667eea">
     <title>EstimatApp - Sala de Poker</title>
-    <link rel="stylesheet" href="/static/styles.css?v=10.1">
+    <link rel="stylesheet" href="/static/styles.css?v=11.2">
 </head>
 <body>
     <div class="container room-container">
@@ -18,21 +18,40 @@
                     </svg>
                 </a>
                 <span class="header-logo">EstiMatApp</span>
-                <button class="btn-icon" onclick="toggleTheme()" aria-label="Cambiar tema">
-                    <span id="themeIcon">🌙</span>
-                </button>
+                <div class="header-actions">
+                    <button class="btn-icon" onclick="startTour()" aria-label="Ver tutorial" data-tooltip="Ver tutorial de uso">
+                        <span>❓</span>
+                    </button>
+                    <button class="btn-icon" onclick="toggleTheme()" aria-label="Cambiar tema">
+                        <span id="themeIcon">🌙</span>
+                    </button>
+                </div>
             </div>
             <!-- Fila 2: Info de sala -->
             <div class="header-room">
                 <h1 id="roomName" class="room-name">Cargando...</h1>
-                <div class="room-id-badge">
-                    <span class="room-id-text">ID: <code id="roomIdDisplay">{{ room_id }}</code></span>
-                    <button onclick="copyRoomId()" class="btn-copy-sm" title="Copiar ID">
-                        <svg id="copyIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                        </svg>
-                    </button>
+                <div class="room-meta">
+                    <div class="room-id-badge">
+                        <span class="room-id-text">ID: <code id="roomIdDisplay">{{ room_id }}</code></span>
+                        <button onclick="copyRoomId()" class="btn-copy-sm" title="Copiar ID">
+                            <svg id="copyIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="session-timers">
+                        <div class="timer-badge" data-tooltip="Tiempo total de la sesión de planning">
+                            <span class="timer-icon">⏱️</span>
+                            <span class="timer-label">Sesión:</span>
+                            <span class="timer-value" id="sessionTimer">00:00</span>
+                        </div>
+                        <div class="timer-badge timer-story" data-tooltip="Tiempo estimando la historia actual">
+                            <span class="timer-icon">📝</span>
+                            <span class="timer-label">Historia:</span>
+                            <span class="timer-value" id="storyTimer">00:00</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -44,14 +63,15 @@
                         <input 
                             type="text" 
                             id="storyName" 
-                            placeholder="Historia de usuario..."
+                            placeholder="Ej: Como usuario quiero..."
                             maxlength="100"
+                            data-tooltip="Ingresa el nombre o descripción de la historia a estimar"
                         >
-                        <button onclick="setStory()" class="btn btn-primary">Establecer</button>
+                        <button onclick="setStory()" class="btn btn-primary" data-tooltip="Establecer la historia actual para votación">📝 Establecer Historia</button>
                     </div>
                     <div id="facilitatorControls" class="facilitator-controls" style="display: none;">
-                        <div class="custom-select-wrapper">
-                            <select id="scaleSelect" onchange="changeScale()" class="custom-select" title="Seleccionar escala">
+                        <div class="custom-select-wrapper" data-tooltip="Escala de puntos para estimar">
+                            <select id="scaleSelect" onchange="changeScale()" class="custom-select">
                                 <option value="fibonacci">🔢 Fibonacci</option>
                                 <option value="modified_fibonacci" selected>⭐ Fibonacci Modificada</option>
                                 <option value="powers_of_2">💪 Potencias de 2</option>
@@ -61,9 +81,9 @@
                             </select>
                             <span class="select-arrow">▼</span>
                         </div>
-                        <button onclick="toggleVotingMode()" id="votingModeBtn" class="btn btn-voting-mode" title="Cambiar modo de votación">
+                        <button onclick="toggleVotingMode()" id="votingModeBtn" class="btn btn-voting-mode" data-tooltip="Público: todos ven los votos individuales. Anónimo: solo se muestra el resumen">
                             <span id="votingModeIcon">👁️</span>
-                            <span id="votingModeText">Público</span>
+                            <span id="votingModeText">Modo Público</span>
                         </button>
                     </div>
                 </div>
@@ -81,11 +101,11 @@
             </section>
 
             <section class="controls-section">
-                <button onclick="revealVotes()" id="revealBtn" class="btn btn-reveal" disabled style="display: none;">
+                <button onclick="revealVotes()" id="revealBtn" class="btn btn-reveal" disabled style="display: none;" data-tooltip="Mostrar los votos de todos los participantes" data-tooltip-pos="top">
                     🎯 Revelar Votos
                 </button>
-                <button onclick="resetVotes()" id="resetBtn" class="btn btn-reset" style="display: none;">
-                    🔄 Nueva Ronda
+                <button onclick="resetVotes()" id="resetBtn" class="btn btn-reset" style="display: none;" data-tooltip="Limpiar votos e iniciar una nueva ronda de estimación" data-tooltip-pos="top">
+                    🔄 Nueva Ronda de Votación
                 </button>
             </section>
 
@@ -165,6 +185,27 @@
         </div>
     </div>
     
-    <script src="/static/room.js"></script>
+    <!-- Guided Tour Overlay -->
+    <div id="tourOverlay" class="tour-overlay" style="display: none;">
+        <div class="tour-spotlight" id="tourSpotlight"></div>
+        <div class="tour-tooltip" id="tourTooltip">
+            <div class="tour-tooltip-header">
+                <span class="tour-step-indicator" id="tourStepIndicator">Paso 1 de 5</span>
+                <button class="tour-close" onclick="endTour()" aria-label="Cerrar tutorial">✕</button>
+            </div>
+            <div class="tour-tooltip-content" id="tourContent">
+                <!-- Contenido dinámico -->
+            </div>
+            <div class="tour-tooltip-footer">
+                <button class="btn btn-secondary tour-btn" id="tourSkip" onclick="endTour()">Omitir</button>
+                <div class="tour-nav">
+                    <button class="btn btn-secondary tour-btn" id="tourPrev" onclick="prevTourStep()" style="display: none;">← Anterior</button>
+                    <button class="btn btn-primary tour-btn" id="tourNext" onclick="nextTourStep()">Siguiente →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/room.js?v=11.5"></script>
 </body>
 </html>
