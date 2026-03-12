@@ -48,8 +48,9 @@ class ConnectionManager:
         """
         if room_id in self.active_connections:
             self.active_connections[room_id].pop(player_id, None)
-            if not self.active_connections[room_id]:
-                del self.active_connections[room_id]
+            # Ya no eliminamos la sala automáticamente si no quedan jugadores conectados
+            # if not self.active_connections[room_id]:
+            #     del self.active_connections[room_id]
 
     async def send_to_player(self, room_id: str, player_id: str, message: dict[str, Any]) -> bool:
         """Envía un mensaje a un jugador específico.

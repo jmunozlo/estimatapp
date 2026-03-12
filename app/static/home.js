@@ -86,7 +86,7 @@ async function loadActiveRooms() {
                     <div class="room-item-actions">
                         <button 
                             class="btn btn-primary" 
-                            onclick="quickJoinRoom('${room.id}')"
+                            onclick="joinRoomDirect('${room.id}')"
                         >
                             Unirse
                         </button>
@@ -186,10 +186,63 @@ function setupJoinRoomForm() {
     });
 }
 
-function quickJoinRoom(roomId) {
-    document.getElementById('roomId').value = roomId;
-    document.getElementById('playerName').focus();
-    document.getElementById('joinRoomForm').scrollIntoView({ behavior: 'smooth' });
+
+
+function joinRoomDirect(roomId) {
+    const modal = document.getElementById('joinDirectModal');
+    const nameInput = document.getElementById('joinDirectName');
+    const okBtn = document.getElementById('joinDirectOk');
+    const cancelBtn = document.getElementById('joinDirectCancel');
+
+    nameInput.value = '';
+    modal.style.display = 'flex';
+    nameInput.focus();
+
+    function cleanup() {
+        modal.style.display = 'none';
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        nameInput.removeEventListener('keydown', onEnter);
+    }
+
+    async function onOk() {
+        const playerName = nameInput.value.trim();
+        if (!playerName) {
+            nameInput.focus();
+            return;
+        }
+        try {
+            const response = await fetch(`/api/rooms/${roomId}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_name: playerName, is_observer: false })
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: 'Error al unirse a la sala' }));
+                throw new Error(errorData.detail || 'Error al unirse a la sala');
+            }
+            const data = await response.json();
+            localStorage.setItem('playerId', data.player_id);
+            localStorage.setItem('playerName', data.player_name);
+            cleanup();
+            window.location.href = `/room/${roomId}`;
+        } catch (error) {
+            console.error('Error al unirse a la sala:', error);
+            cleanup();
+            showNotification('Error al unirse a la sala. Verifica el ID de la sala.', 'error');
+        }
+    }
+    function onCancel() {
+        cleanup();
+    }
+    function onEnter(e) {
+        if (e.key === 'Enter') {
+            onOk();
+        }
+    }
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    nameInput.addEventListener('keydown', onEnter);
 }
 
 async function deleteRoom(roomId, roomName) {

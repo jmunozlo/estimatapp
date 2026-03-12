@@ -230,8 +230,9 @@ function updateRoomUI() {
     // Actualizar modo de votación
     updateVotingModeUI();
 
-    // Actualizar lista de jugadores
+    // Actualizar lista de jugadores y roles
     updatePlayersList();
+    // Asegurarse de que isFacilitator/isObserver están actualizados antes de usar en otros controles
 
     // Actualizar estado de votación
     updateVotingState();
@@ -246,7 +247,7 @@ function updateRoomUI() {
         hideResults();
     }
 
-    // Actualizar historial
+    // Actualizar historial (ahora sí, con roles correctos)
     updateHistory();
 
     // Actualizar total de story points
@@ -511,14 +512,17 @@ function updateHistory() {
     if (!roomState.history || roomState.history.length === 0) {
         historyList.innerHTML = '<p class="empty-state">📊 No hay votaciones en el historial</p>';
         showVotesToggle.style.display = 'none';
+        showVotesToggle.style.visibility = 'hidden';
         return;
     }
 
-    // Mostrar toggle solo en modo público
-    if (roomState.voting_mode === 'public') {
+    // Mostrar toggle solo en modo público y si es facilitador
+    if (roomState.voting_mode === 'public' && isFacilitator) {
         showVotesToggle.style.display = 'flex';
+        showVotesToggle.style.visibility = 'visible';
     } else {
         showVotesToggle.style.display = 'none';
+        showVotesToggle.style.visibility = 'hidden';
     }
 
     historyList.innerHTML = roomState.history

@@ -77,6 +77,19 @@
     </div>
 
     <script src="/static/home.js"></script>
+
+    <!-- Modal para unirse directo desde Salas Activas -->
+    <div id="joinDirectModal" class="notification-modal" style="display: none;">
+        <div class="notification-content">
+            <div class="notification-icon">👤</div>
+            <div class="notification-message">Ingresa tu nombre para unirte a la sala:</div>
+            <input id="joinDirectName" type="text" maxlength="30" placeholder="Tu nombre" style="margin: 12px 0; width: 100%; padding: 8px; font-size: 1rem; border-radius: 6px; border: 1px solid #888;">
+            <div class="notification-buttons">
+                <button id="joinDirectCancel" class="btn btn-secondary">Cancelar</button>
+                <button id="joinDirectOk" class="btn btn-primary">Unirse</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Modal de Notificación -->
     <div id="notificationModal" class="notification-modal" style="display: none;">

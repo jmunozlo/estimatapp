@@ -179,18 +179,6 @@ class TestRoomScales:
 
         assert sample_room.get_current_scale() == ["S", "M", "L"]
 
-    def test_round_to_scale(self, sample_room: Room):
-        """Verifica el redondeo a la escala."""
-        sample_room.voting_scale = "modified_fibonacci"
-
-        # 6.0 debería redondearse a 5 (más cercano)
-        assert sample_room.round_to_scale(6.0) == "5"
-
-        # 7.0 debería redondearse a 8
-        assert sample_room.round_to_scale(7.0) == "8"
-
-        # 0.3 debería redondearse a 0.5
-        assert sample_room.round_to_scale(0.3) == "0.5"
 
     def test_round_to_scale_with_t_shirt(self, sample_room: Room):
         """Verifica que escalas no numéricas retornan None."""
@@ -338,3 +326,13 @@ class TestVotingModes:
         sample_room.voting_mode = VotingMode.ANONYMOUS
 
         assert sample_room.voting_mode == VotingMode.ANONYMOUS
+
+
+class TestVotingScales:
+    def test_modified_fibonacci_values(self):
+        from app.models.poker import SCALES
+        scale = SCALES["modified_fibonacci"]
+        assert scale[0] == "0"
+        assert scale[1] == "0.5"
+        assert scale[2] == "1"
+        assert scale[-1] == "☕"

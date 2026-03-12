@@ -56,13 +56,14 @@ class TestConnectionManager:
         assert "player1" not in connection_manager.active_connections["room1"]
         assert "player2" in connection_manager.active_connections["room1"]
 
-    def test_disconnect_last_player_removes_room(self, connection_manager, mock_websocket):
-        """Verifica que desconectar el último jugador elimina la sala."""
+    def test_disconnect_last_player_leaves_empty_room(self, connection_manager, mock_websocket):
+        """Verifica que desconectar el último jugador deja la sala vacía pero no la elimina (nuevo comportamiento)."""
         connection_manager.active_connections = {"room1": {"player1": mock_websocket}}
 
         connection_manager.disconnect("room1", "player1")
 
-        assert "room1" not in connection_manager.active_connections
+        assert "room1" in connection_manager.active_connections
+        assert connection_manager.active_connections["room1"] == {}
 
     def test_disconnect_nonexistent_room(self, connection_manager):
         """Verifica que desconectar de sala inexistente no falla."""
