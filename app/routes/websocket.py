@@ -1,9 +1,11 @@
 """Rutas WebSocket para Scrum Poker."""
 
+import os
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.infrastructure.auth.jwt_validator import JWKSValidator
 from app.manager import room_manager
 from app.models import Player, Room, RoomStatus, VotingMode
 from app.websocket import ws_manager
@@ -14,10 +16,26 @@ router = APIRouter()
 MAX_STORY_NAME_LENGTH = 200
 MIN_SCALE_VALUES = 2
 
+# JWT Validator for WebSocket connections (lazy-initialized)
+_jwt_validator: JWKSValidator | None = None
+
+
+def _get_jwt_validator() -> JWKSValidator | None:
+    """Get or create the JWT validator for WS auth."""
+    global _jwt_validator
+    if _jwt_validator is None:
+        supabase_url = os.getenv("SUPABASE_URL", "")
+        anon_key = os.getenv("SUPABASE_ANON_KEY", "")
+        if supabase_url and anon_key:
+            _jwt_validator = JWKSValidator(
+                supabase_url=supabase_url, anon_key=anon_key
+            )
+    return _jwt_validator
+
 
 async def broadcast_room_state(room_id: str) -> None:
     """Envía el estado actual de la sala a todos los jugadores."""
-    room = room_manager.get_room(room_id)
+    room = await room_manager.get_room(room_id)
     if not room:
         return
 
@@ -91,7 +109,7 @@ def _build_history_data(room: Room) -> list[dict[str, Any]]:
 async def _handle_vote(
     websocket: WebSocket, room: Room, player: Player, data: dict[str, Any]
 ) -> None:
-    """Maneja la acción de votar."""
+    """Maneja la acción de votar y persiste el voto."""
     vote_value = data.get("vote")
 
     if vote_value is None:
@@ -110,11 +128,15 @@ async def _handle_vote(
         return
 
     player.vote = vote_value
+
+    # Persist the vote via the repository
+    await room_manager._repository.save(room)
+
     await broadcast_room_state(room.id)
 
 
 async def _handle_reveal(websocket: WebSocket, room: Room, player: Player) -> None:
-    """Maneja la acción de revelar votos."""
+    """Maneja la acción de revelar votos y persiste el cambio."""
     if not player.is_facilitator:
         await websocket.send_json(
             {
@@ -125,11 +147,12 @@ async def _handle_reveal(websocket: WebSocket, room: Room, player: Player) -> No
         return
 
     room.reveal_votes()
+    await room_manager._repository.save(room)
     await broadcast_room_state(room.id)
 
 
 async def _handle_reset(websocket: WebSocket, room: Room, player: Player) -> None:
-    """Maneja la acción de resetear votos."""
+    """Maneja la acción de resetear votos y persiste el cambio."""
     if not player.is_facilitator:
         await websocket.send_json(
             {
@@ -140,6 +163,7 @@ async def _handle_reset(websocket: WebSocket, room: Room, player: Player) -> Non
         return
 
     room.reset_votes()
+    await room_manager._repository.save(room)
     await broadcast_room_state(room.id)
 
 
@@ -290,8 +314,25 @@ async def _handle_set_custom_scale(
 
 @router.websocket("/ws/{room_id}/{player_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, player_id: str) -> None:
-    """Endpoint WebSocket para la comunicación en tiempo real."""
-    room = room_manager.get_room(room_id)
+    """Endpoint WebSocket para la comunicación en tiempo real.
+
+    Validates JWT from ``?token=`` query parameter if auth is configured.
+    Closes with code 4001 if the token is invalid or expired.
+    """
+    # Validate JWT from query parameter if configured
+    validator = _get_jwt_validator()
+    if validator is not None:
+        token = websocket.query_params.get("token", "")
+        if not token:
+            await websocket.close(code=4001, reason="Token requerido")
+            return
+        try:
+            await validator.validate(token)
+        except Exception:
+            await websocket.close(code=4001, reason="Token inválido o expirado")
+            return
+
+    room = await room_manager.get_room(room_id)
     if not room:
         await websocket.close(code=1008, reason="Sala no encontrada")
         return

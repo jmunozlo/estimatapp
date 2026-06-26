@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.manager import room_manager
@@ -47,11 +47,24 @@ class JoinRoomResponse(BaseModel):
     player_name: str
 
 
+def _get_user_sub(request: Request) -> str | None:
+    """Extract the authenticated user's sub from request state.
+
+    The auth middleware injects ``user_sub`` after successful JWT validation.
+    Returns ``None`` if the request is unauthenticated.
+    """
+    return getattr(request.state, "user_sub", None)
+
+
 @router.post("/rooms", response_model=RoomResponse)
-async def create_room(request: CreateRoomRequest) -> dict[str, Any]:
-    """Crea una nueva sala de Scrum Poker."""
+async def create_room(request: Request, body: CreateRoomRequest) -> dict[str, Any]:
+    """Crea una nueva sala de Scrum Poker.
+
+    Requires authentication (auth middleware returns 401 without valid JWT).
+    Uses authenticated user's ``sub`` as ``created_by``.
+    """
     # Validar nombre de sala
-    room_name = request.name.strip()
+    room_name = body.name.strip()
     if not room_name:
         raise HTTPException(status_code=400, detail="El nombre de la sala no puede estar vacío")
 
@@ -61,7 +74,13 @@ async def create_room(request: CreateRoomRequest) -> dict[str, Any]:
             detail="El nombre de la sala es demasiado largo (máximo 100 caracteres)",
         )
 
-    room = room_manager.create_room(room_name)
+    room = await room_manager.create_room(room_name)
+
+    # Set created_by from JWT if available (middleware injects it)
+    user_sub = _get_user_sub(request)
+    if user_sub:
+        room.created_by = user_sub
+
     return {
         "id": room.id,
         "name": room.name,
@@ -73,7 +92,7 @@ async def create_room(request: CreateRoomRequest) -> dict[str, Any]:
 @router.get("/rooms", response_model=list[RoomResponse])
 async def list_rooms() -> list[dict[str, Any]]:
     """Lista todas las salas activas."""
-    rooms = room_manager.list_rooms()
+    rooms = await room_manager.list_rooms()
     return [
         {
             "id": room.id,
@@ -88,7 +107,7 @@ async def list_rooms() -> list[dict[str, Any]]:
 @router.get("/rooms/{room_id}", response_model=RoomResponse)
 async def get_room(room_id: str) -> dict[str, Any]:
     """Obtiene información de una sala específica."""
-    room = room_manager.get_room(room_id)
+    room = await room_manager.get_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Sala no encontrada")
 
@@ -101,14 +120,14 @@ async def get_room(room_id: str) -> dict[str, Any]:
 
 
 @router.post("/rooms/{room_id}/join", response_model=JoinRoomResponse)
-async def join_room(room_id: str, request: JoinRoomRequest) -> dict[str, str]:
+async def join_room(room_id: str, body: JoinRoomRequest) -> dict[str, str]:
     """Une un jugador a una sala con soporte para reconexión."""
-    room = room_manager.get_room(room_id)
+    room = await room_manager.get_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Sala no encontrada")
 
     # Validar nombre de jugador
-    player_name = request.player_name.strip()
+    player_name = body.player_name.strip()
     if not player_name:
         raise HTTPException(status_code=400, detail="El nombre del jugador no puede estar vacío")
 
@@ -124,7 +143,7 @@ async def join_room(room_id: str, request: JoinRoomRequest) -> dict[str, str]:
     if existing_player:
         # Reconectar jugador existente
         existing_player.connected = True
-        existing_player.is_observer = request.is_observer  # Actualizar estado de observador
+        existing_player.is_observer = body.is_observer  # Actualizar estado de observador
         return {
             "room_id": room_id,
             "player_id": existing_player.id,
@@ -145,7 +164,7 @@ async def join_room(room_id: str, request: JoinRoomRequest) -> dict[str, str]:
     player = Player(
         id=player_id,
         name=player_name,
-        is_observer=request.is_observer,
+        is_observer=body.is_observer,
         is_facilitator=is_facilitator,
     )
     room.add_player(player)
@@ -158,11 +177,14 @@ async def join_room(room_id: str, request: JoinRoomRequest) -> dict[str, str]:
 
 
 @router.delete("/rooms/{room_id}")
-async def delete_room(room_id: str) -> dict[str, str]:
-    """Elimina una sala."""
-    room = room_manager.get_room(room_id)
+async def delete_room(request: Request, room_id: str) -> dict[str, str]:
+    """Elimina una sala.
+
+    Requires authentication (auth middleware returns 401 without valid JWT).
+    """
+    room = await room_manager.get_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Sala no encontrada")
 
-    room_manager.delete_room(room_id)
+    await room_manager.delete_room(room_id)
     return {"message": "Sala eliminada correctamente"}

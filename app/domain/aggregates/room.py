@@ -24,6 +24,9 @@ class Room:
 
     id: str
     name: str
+    team_id: str | None = None
+    created_by: str | None = None
+    ended_at: datetime | None = None
     created_at: datetime = field(default_factory=datetime.now)
     status: RoomStatus = RoomStatus.VOTING
     voting_mode: VotingMode = VotingMode.PUBLIC

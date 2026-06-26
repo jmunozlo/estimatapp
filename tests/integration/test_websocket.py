@@ -17,7 +17,7 @@ class TestWebSocketBroadcast:
 
         await async_client.post(f"/api/rooms/{room_id}/join", json={"player_name": "John"})
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         assert room is not None
         assert room.name == "Test Room"
 
@@ -31,7 +31,7 @@ class TestWebSocketBroadcast:
         await async_client.post(f"/api/rooms/{room_id}/join", json={"player_name": "Alice"})
         await async_client.post(f"/api/rooms/{room_id}/join", json={"player_name": "Bob"})
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         assert len(room.players) == 2
 
 
@@ -50,7 +50,7 @@ class TestVotingWorkflow:
         player_id = join_response.json()["player_id"]
 
         # Simular voto directamente en el modelo
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         player = room.get_player(player_id)
         player.vote = "5"
 
@@ -65,7 +65,7 @@ class TestVotingWorkflow:
 
         await async_client.post(f"/api/rooms/{room_id}/join", json={"player_name": "Facilitator"})
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         room.reveal_votes()
 
         assert room.status == RoomStatus.REVEALED
@@ -81,7 +81,7 @@ class TestVotingWorkflow:
         )
         player_id = join_response.json()["player_id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         room.story_name = "US-001"
         room.get_player(player_id).vote = "8"
         room.reveal_votes()
@@ -103,7 +103,7 @@ class TestVotingWorkflow:
         )
         player_id = join_response.json()["player_id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         player = room.get_player(player_id)
 
         # Votar
@@ -123,7 +123,7 @@ class TestScaleManagement:
         create_response = await async_client.post("/api/rooms", json={"name": "Scale Test"})
         room_id = create_response.json()["id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         original_scale = room.voting_scale
 
         room.voting_scale = "fibonacci"
@@ -136,7 +136,7 @@ class TestScaleManagement:
         create_response = await async_client.post("/api/rooms", json={"name": "Custom Scale Test"})
         room_id = create_response.json()["id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         room.custom_scale = ["XS", "S", "M", "L", "XL"]
 
         assert room.get_current_scale() == ["XS", "S", "M", "L", "XL"]
@@ -152,7 +152,7 @@ class TestVotingModes:
         create_response = await async_client.post("/api/rooms", json={"name": "Anonymous Test"})
         room_id = create_response.json()["id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         room.voting_mode = VotingMode.ANONYMOUS
 
         assert room.voting_mode == VotingMode.ANONYMOUS
@@ -164,7 +164,7 @@ class TestVotingModes:
         create_response = await async_client.post("/api/rooms", json={"name": "Public Test"})
         room_id = create_response.json()["id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
 
         assert room.voting_mode == VotingMode.PUBLIC
 
@@ -177,7 +177,7 @@ class TestStoryManagement:
         create_response = await async_client.post("/api/rooms", json={"name": "Story Test"})
         room_id = create_response.json()["id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         room.story_name = "US-001: User login"
 
         assert room.story_name == "US-001: User login"
@@ -192,7 +192,7 @@ class TestStoryManagement:
         )
         player_id = join_response.json()["player_id"]
 
-        room = room_manager.get_room(room_id)
+        room = await room_manager.get_room(room_id)
         room.story_name = "US-001"
         room.get_player(player_id).vote = "5"
 

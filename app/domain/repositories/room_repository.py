@@ -1,6 +1,7 @@
-"""Interfaz del repositorio de salas.
+"""Room repository interface.
 
-Define el contrato que deben implementar los repositorios de Room.
+Defines the contract that all Room repository implementations must follow.
+All methods are async to support both in-memory and PostgreSQL backends.
 """
 
 from abc import ABC, abstractmethod
@@ -9,65 +10,86 @@ from app.domain.aggregates.room import Room
 
 
 class RoomRepository(ABC):
-    """Interfaz abstracta para el repositorio de salas.
+    """Abstract interface for the room repository.
 
-    Define las operaciones que cualquier implementación de repositorio
-    de salas debe proporcionar.
+    Defines operations that any room repository implementation must provide.
     """
 
     @abstractmethod
-    def save(self, room: Room) -> None:
-        """Guarda una sala (crear o actualizar).
+    async def save(self, room: Room) -> None:
+        """Save a room (create or update).
 
         Args:
-            room: La sala a guardar.
+            room: The room to save.
         """
 
     @abstractmethod
-    def get_by_id(self, room_id: str) -> Room | None:
-        """Obtiene una sala por su ID.
+    async def get_by_id(self, room_id: str) -> Room | None:
+        """Get a room by its ID.
 
         Args:
-            room_id: El identificador de la sala.
+            room_id: The room identifier.
 
         Returns:
-            La sala si existe, None en caso contrario.
+            The room if found, None otherwise.
         """
 
     @abstractmethod
-    def delete(self, room_id: str) -> bool:
-        """Elimina una sala.
+    async def delete(self, room_id: str) -> bool:
+        """Delete a room.
 
         Args:
-            room_id: El identificador de la sala a eliminar.
+            room_id: The identifier of the room to delete.
 
         Returns:
-            True si se eliminó, False si no existía.
+            True if deleted, False if not found.
         """
 
     @abstractmethod
-    def list_all(self) -> list[Room]:
-        """Lista todas las salas.
+    async def list_all(self) -> list[Room]:
+        """List all rooms.
 
         Returns:
-            Lista de todas las salas existentes.
+            List of all existing rooms.
         """
 
     @abstractmethod
-    def exists(self, room_id: str) -> bool:
-        """Verifica si una sala existe.
+    async def exists(self, room_id: str) -> bool:
+        """Check if a room exists.
 
         Args:
-            room_id: El identificador de la sala.
+            room_id: The room identifier.
 
         Returns:
-            True si existe, False en caso contrario.
+            True if the room exists.
         """
 
     @abstractmethod
-    def count(self) -> int:
-        """Cuenta el número total de salas.
+    async def count(self) -> int:
+        """Count the total number of rooms.
 
         Returns:
-            Número de salas existentes.
+            Number of existing rooms.
+        """
+
+    @abstractmethod
+    async def list_by_team(self, team_id: str) -> list[Room]:
+        """List rooms belonging to a team.
+
+        Args:
+            team_id: The team identifier.
+
+        Returns:
+            List of rooms for the given team.
+        """
+
+    @abstractmethod
+    async def count_by_team(self, team_id: str) -> int:
+        """Count active rooms for a team (used for free tier limit enforcement).
+
+        Args:
+            team_id: The team identifier.
+
+        Returns:
+            Number of rooms belonging to the given team.
         """
