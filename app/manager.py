@@ -22,44 +22,52 @@ class RoomManager:
     Selects ``InMemoryRoomRepository`` or ``PostgresRoomRepository`` based on
     the ``REPOSITORY`` environment variable ("inmemory" | "postgres").
     All methods are async to support the async RoomRepository contract.
+    The pool connection is lazy — acquired on first use, not at init time.
     """
 
     def __init__(self) -> None:
-        """Initialize the room manager with the configured repository.
+        """Initialize the room manager.
 
         Reads ``REPOSITORY`` env var (default: "inmemory").
-        If ``postgres``, requires the pool to be initialized first.
+        Pool/connection is acquired lazily on first repository access.
         """
-        repo_type = os.getenv("REPOSITORY", "inmemory").lower()
+        self._repo_type = os.getenv("REPOSITORY", "inmemory").lower()
+        self._repository = None  # lazy — initialized on first use
 
-        if repo_type == "postgres":
+    def _get_repository(self):
+        """Get or initialize the repository (lazy)."""
+        if self._repository is not None:
+            return self._repository
+
+        if self._repo_type == "postgres":
             pool = get_pool()
             self._repository = PostgresRoomRepository(pool)
         else:
             self._repository = get_room_repository()
+        return self._repository
 
     async def create_room(self, name: str) -> Room:
         """Create a new room."""
         room_id = str(uuid4())[:8]
         room = Room.create(room_id=room_id, name=name)
-        await self._repository.save(room)
+        await self._get_repository().save(room)
         return room
 
     async def get_room(self, room_id: str) -> Room | None:
         """Get a room by its ID."""
-        return await self._repository.get_by_id(room_id)
+        return await self._get_repository().get_by_id(room_id)
 
     async def delete_room(self, room_id: str) -> None:
         """Delete a room."""
-        await self._repository.delete(room_id)
+        return await self._get_repository().delete(room_id)
 
     async def list_rooms(self) -> list[Room]:
         """List all active rooms."""
-        return await self._repository.list_all()
+        return await self._get_repository().list_all()
 
     async def count_rooms(self) -> int:
         """Count all rooms."""
-        return await self._repository.count()
+        return await self._get_repository().count()
 
 
 # Global room manager instance
